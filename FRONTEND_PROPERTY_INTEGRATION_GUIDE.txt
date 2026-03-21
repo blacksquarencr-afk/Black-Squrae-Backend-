@@ -1,0 +1,715 @@
+================================================================================
+          PROPERTY POSTING API - COMPLETE FRONTEND INTEGRATION GUIDE
+================================================================================
+
+API ENDPOINT
+------------
+POST https://nk5.yaatrabuddy.com/property/admin/add
+
+AUTHENTICATION
+--------------
+Authorization: Bearer {adminToken}
+
+REQUEST FORMAT
+--------------
+Content-Type: multipart/form-data
+Method: POST
+
+
+================================================================================
+                          COMPLETE FIELD REFERENCE
+================================================================================
+
+1. COMMON FIELDS (REQUIRED FOR ALL PROPERTY TYPES)
+---------------------------------------------------
+
+propertyLocation       : string    - Full address with city, state
+areaDetails           : number    - Property area in square feet/meters
+facingDirection       : string    - Enum: "North" | "South" | "East" | "West"
+availability          : string    - e.g., "Ready to Move", "Under Construction"
+price                 : number    - Property price in INR
+description           : string    - Detailed property description
+furnishingStatus      : string    - Enum: "Furnished" | "Semi-Furnished" | "Unfurnished"
+parking               : string    - Enum: "Available" | "Not Available"
+purpose               : string    - Enum: "Sell" | "Rent/Lease" | "Paying Guest"
+contactNumber         : string    - 10-15 digits, can start with +
+photosAndVideo        : File[]    - Multiple image files
+
+
+================================================================================
+                    PROPERTY TYPE SPECIFIC FIELD LOGIC
+================================================================================
+
+A. RESIDENTIAL PROPERTIES
+--------------------------
+propertyType: "Residential"
+residentialType: "Apartment" | "Villa" | "Plot" | "PG/Hostel" | "Agricultural Land"
+
+
+A1. FOR APARTMENT & VILLA
+--------------------------
+Required Fields:
+  bedrooms              : number    - Minimum 1, required
+  bathrooms             : number    - Minimum 1, required
+  balconies             : number    - Valid values: 0, 1, 2, 3
+  floorNumber           : number    - Minimum 0, required
+  totalFloors           : number    - Minimum 1, required
+  
+Validation Rules:
+  - bedrooms >= 1
+  - bathrooms >= 1
+  - balconies must be 0, 1, 2, or 3
+  - floorNumber >= 0
+  - totalFloors >= 1
+  - floorNumber must be <= totalFloors
+
+
+A2. FOR PLOT & AGRICULTURAL LAND
+---------------------------------
+Required Fields:
+  bedrooms              : 0         - Always set to 0
+  bathrooms             : 0         - Always set to 0
+  balconies             : 0         - Always set to 0
+  floorNumber           : 0         - Always set to 0
+  totalFloors           : 0         - Always set to 0
+
+UI Behavior:
+  - Hide bedroom/bathroom/balcony fields in form
+  - Don't show floor selection
+  - Only show: location, area, price, description, photos
+
+
+A3. FOR PG/HOSTEL (purpose must be "Paying Guest")
+---------------------------------------------------
+Required Fields:
+  bedrooms              : number    - Minimum 1, required
+  bathrooms             : number    - Minimum 1, required
+  balconies             : number    - Valid values: 0, 1, 2, 3
+  floorNumber           : number    - Minimum 0, required
+  totalFloors           : number    - Minimum 1, required
+  noticePeriod          : string    - Enum: "15 Days" | "1 Month" | "2 Months"
+  foodIncluded          : string    - Enum: "Yes" | "No" | "Optional"
+  pgType                : string    - Enum: "Boys PG" | "Girls PG" | "Co-living"
+  sharingType           : string    - Enum: "Single Room" | "Double Sharing" | "Triple Sharing"
+
+
+B. COMMERCIAL PROPERTIES
+-------------------------
+propertyType: "Commercial"
+commercialType: "Office Space" | "Shop" | "Warehouse" | "Industrial"
+
+⚠️ CRITICAL: DO NOT send "residentialType" for Commercial properties!
+
+Required Fields:
+  bedrooms              : 0         - Always set to 0
+  bathrooms             : 0         - Always set to 0
+  balconies             : 0         - Always set to 0
+  floorNumber           : number    - Minimum 0, required
+  totalFloors           : number    - Minimum 1, required
+  commercialType        : string    - REQUIRED (NOT residentialType!)
+
+UI Behavior:
+  - Hide bedroom/bathroom/balcony fields
+  - Show floor selection
+  - Show commercial type dropdown
+
+
+C. LAND PROPERTIES
+-------------------
+propertyType: "Land"
+residentialType: "Agricultural Land" | "Plot"
+
+Required Fields:
+  bedrooms              : 0         - Always set to 0
+  bathrooms             : 0         - Always set to 0
+  balconies             : 0         - Always set to 0
+  floorNumber           : 0         - Always set to 0
+  totalFloors           : 0         - Always set to 0
+
+UI Behavior:
+  - Hide all structural fields
+  - Only show: location, area, price, description, photos
+
+
+================================================================================
+                      PURPOSE-BASED CONDITIONAL FIELDS
+================================================================================
+
+1. FOR "Rent/Lease" PURPOSE
+----------------------------
+Additional Required Field:
+  noticePeriod          : string    - Enum: "15 Days" | "1 Month" | "2 Months"
+
+
+2. FOR "Paying Guest" PURPOSE
+------------------------------
+Additional Required Fields:
+  noticePeriod          : string    - Enum: "15 Days" | "1 Month" | "2 Months"
+  foodIncluded          : string    - Enum: "Yes" | "No" | "Optional"
+  pgType                : string    - Enum: "Boys PG" | "Girls PG" | "Co-living"
+  sharingType           : string    - Enum: "Single Room" | "Double Sharing" | "Triple Sharing"
+
+⚠️ When purpose = "Paying Guest", residentialType should be "PG/Hostel"
+
+
+================================================================================
+                          FORM VALIDATION LOGIC
+================================================================================
+
+VALIDATION RULE 1: Residential Apartment/Villa
+-----------------------------------------------
+if (propertyType === "Residential" && 
+    (residentialType === "Apartment" || residentialType === "Villa")) {
+    
+    // Show and require these fields:
+    - bedrooms: min 1
+    - bathrooms: min 1
+    - balconies: 0-3
+    - floorNumber: >= 0
+    - totalFloors: >= 1
+    - floorNumber must be <= totalFloors
+}
+
+
+VALIDATION RULE 2: Residential Plot/Agricultural Land
+------------------------------------------------------
+if (propertyType === "Residential" && 
+    (residentialType === "Plot" || residentialType === "Agricultural Land")) {
+    
+    // Automatically set these values:
+    bedrooms = 0
+    bathrooms = 0
+    balconies = 0
+    floorNumber = 0
+    totalFloors = 0
+    
+    // Hide these fields in UI - don't show bedroom/bathroom inputs
+}
+
+
+VALIDATION RULE 3: Commercial Properties
+-----------------------------------------
+if (propertyType === "Commercial") {
+    
+    // MUST send commercialType (Office Space/Shop/Warehouse/Industrial)
+    // DO NOT send residentialType
+    
+    // Automatically set:
+    bedrooms = 0
+    bathrooms = 0
+    balconies = 0
+    
+    // Show and require:
+    - floorNumber: >= 0
+    - totalFloors: >= 1
+    - commercialType: required dropdown
+    
+    // Hide bedroom/bathroom/balcony fields in UI
+}
+
+
+VALIDATION RULE 4: Land Properties
+-----------------------------------
+if (propertyType === "Land") {
+    
+    // Automatically set all to 0:
+    bedrooms = 0
+    bathrooms = 0
+    balconies = 0
+    floorNumber = 0
+    totalFloors = 0
+    
+    // Only show basic fields:
+    - propertyLocation
+    - areaDetails
+    - price
+    - description
+    - photos
+}
+
+
+VALIDATION RULE 5: Paying Guest Properties
+-------------------------------------------
+if (purpose === "Paying Guest") {
+    
+    // Must send these additional fields:
+    - noticePeriod: required
+    - foodIncluded: required
+    - pgType: required
+    - sharingType: required
+    
+    // Recommended:
+    - Set residentialType = "PG/Hostel"
+}
+
+
+VALIDATION RULE 6: Rent/Lease Properties
+-----------------------------------------
+if (purpose === "Rent/Lease" || purpose === "Paying Guest") {
+    
+    // Must send:
+    - noticePeriod: required ("15 Days" | "1 Month" | "2 Months")
+}
+
+
+================================================================================
+                      FORMDATA CONSTRUCTION EXAMPLES
+================================================================================
+
+EXAMPLE 1: COMMERCIAL OFFICE SPACE (Rent/Lease)
+------------------------------------------------
+const formData = new FormData();
+
+// Common fields
+formData.append('propertyLocation', 'A-43, Sector 63, Noida, Uttar Pradesh');
+formData.append('areaDetails', '2500');
+formData.append('facingDirection', 'North');
+formData.append('availability', 'Ready to Move');
+formData.append('price', '250000');
+formData.append('description', 'Premium office space in prime location...');
+formData.append('furnishingStatus', 'Furnished');
+formData.append('parking', 'Available');
+formData.append('purpose', 'Rent/Lease');
+formData.append('contactNumber', '9876543210');
+
+// Commercial specific - CRITICAL: use commercialType, NOT residentialType!
+formData.append('propertyType', 'Commercial');
+formData.append('commercialType', 'Office Space');    // ✅ Correct
+// formData.append('residentialType', 'Apartment');   // ❌ NEVER do this!
+
+// Set structural fields
+formData.append('bedrooms', '0');
+formData.append('bathrooms', '0');
+formData.append('balconies', '0');
+formData.append('floorNumber', '3');
+formData.append('totalFloors', '5');
+
+// Purpose specific
+formData.append('noticePeriod', '1 Month');
+
+// Photos
+photos.forEach(file => {
+    formData.append('photosAndVideo', file);
+});
+
+
+EXAMPLE 2: RESIDENTIAL APARTMENT (Sell)
+----------------------------------------
+const formData = new FormData();
+
+formData.append('propertyLocation', 'Sector 62, Noida, Uttar Pradesh');
+formData.append('areaDetails', '1200');
+formData.append('facingDirection', 'East');
+formData.append('availability', 'Ready to Move');
+formData.append('price', '8500000');
+formData.append('description', 'Spacious 3BHK apartment...');
+formData.append('furnishingStatus', 'Semi-Furnished');
+formData.append('parking', 'Available');
+formData.append('purpose', 'Sell');
+formData.append('contactNumber', '9876543210');
+
+// Residential specific
+formData.append('propertyType', 'Residential');
+formData.append('residentialType', 'Apartment');      // ✅ Correct for residential
+
+// Structural fields - REQUIRED for Apartment
+formData.append('bedrooms', '3');
+formData.append('bathrooms', '2');
+formData.append('balconies', '2');
+formData.append('floorNumber', '5');
+formData.append('totalFloors', '10');
+
+// Photos
+photos.forEach(file => {
+    formData.append('photosAndVideo', file);
+});
+
+
+EXAMPLE 3: PLOT/LAND (Sell)
+----------------------------
+const formData = new FormData();
+
+formData.append('propertyLocation', 'Yamuna Expressway, Greater Noida');
+formData.append('areaDetails', '5000');
+formData.append('facingDirection', 'North');
+formData.append('availability', 'Ready to Move');
+formData.append('price', '15000000');
+formData.append('description', '5000 sq ft residential plot...');
+formData.append('furnishingStatus', 'Unfurnished');
+formData.append('parking', 'Not Available');
+formData.append('purpose', 'Sell');
+formData.append('contactNumber', '9876543210');
+
+// Land specific
+formData.append('propertyType', 'Residential');
+formData.append('residentialType', 'Plot');
+
+// All structural fields set to 0
+formData.append('bedrooms', '0');
+formData.append('bathrooms', '0');
+formData.append('balconies', '0');
+formData.append('floorNumber', '0');
+formData.append('totalFloors', '0');
+
+// Photos
+photos.forEach(file => {
+    formData.append('photosAndVideo', file);
+});
+
+
+EXAMPLE 4: PG/HOSTEL (Paying Guest)
+------------------------------------
+const formData = new FormData();
+
+formData.append('propertyLocation', 'Sector 18, Noida, Uttar Pradesh');
+formData.append('areaDetails', '800');
+formData.append('facingDirection', 'South');
+formData.append('availability', 'Ready to Move');
+formData.append('price', '8000');
+formData.append('description', 'Boys PG with food facility...');
+formData.append('furnishingStatus', 'Furnished');
+formData.append('parking', 'Available');
+formData.append('purpose', 'Paying Guest');
+formData.append('contactNumber', '9876543210');
+
+// PG specific
+formData.append('propertyType', 'Residential');
+formData.append('residentialType', 'PG/Hostel');
+
+// Structural fields
+formData.append('bedrooms', '4');
+formData.append('bathrooms', '2');
+formData.append('balconies', '1');
+formData.append('floorNumber', '2');
+formData.append('totalFloors', '4');
+
+// PG mandatory fields
+formData.append('noticePeriod', '1 Month');
+formData.append('foodIncluded', 'Yes');
+formData.append('pgType', 'Boys PG');
+formData.append('sharingType', 'Double Sharing');
+
+// Photos
+photos.forEach(file => {
+    formData.append('photosAndVideo', file);
+});
+
+
+================================================================================
+                        CRITICAL UI/UX IMPLEMENTATION
+================================================================================
+
+1. DYNAMIC FORM FIELD VISIBILITY
+---------------------------------
+Implement conditional rendering based on property type selection:
+
+When user selects "Residential" > "Apartment":
+  ✅ Show: bedrooms, bathrooms, balconies, floor fields
+  
+When user selects "Residential" > "Plot":
+  ❌ Hide: bedrooms, bathrooms, balconies, floor fields
+  ℹ️  These will be automatically set to 0 in backend
+  
+When user selects "Commercial":
+  ❌ Hide: bedrooms, bathrooms, balconies
+  ✅ Show: floor fields, commercial type dropdown
+  
+When user selects "Land":
+  ❌ Hide: all structural fields
+  ✅ Show: only basic info (location, area, price)
+
+
+2. FIELD DEPENDENCIES
+----------------------
+Purpose = "Paying Guest":
+  → Auto-select residentialType = "PG/Hostel" (if not already selected)
+  → Show additional fields: noticePeriod, foodIncluded, pgType, sharingType
+  
+Purpose = "Rent/Lease":
+  → Show noticePeriod field
+  
+PropertyType = "Commercial":
+  → Show commercialType dropdown
+  → Hide residentialType dropdown
+  → NEVER send both commercialType AND residentialType in same request
+  
+PropertyType = "Residential" or "Land":
+  → Show residentialType dropdown
+  → Hide commercialType dropdown
+
+
+3. VALIDATION ERROR MESSAGES
+-----------------------------
+Display user-friendly error messages:
+
+"Bedrooms are required for Apartment/Villa properties (minimum 1)"
+"Commercial property type must be selected (Office Space/Shop/Warehouse/Industrial)"
+"Notice period is required for Rent/Lease properties"
+"Floor number cannot be greater than total floors"
+"Please select a valid facing direction (North/South/East/West)"
+"Contact number must be 10-15 digits"
+"Please upload at least one property image"
+
+
+4. FIELD AUTO-POPULATION
+-------------------------
+When propertyType changes to "Commercial":
+  → Auto-set: bedrooms = 0, bathrooms = 0, balconies = 0
+  → Clear residentialType selection
+  
+When propertyType changes to "Residential" and residentialType = "Plot":
+  → Auto-set: bedrooms = 0, bathrooms = 0, balconies = 0, floorNumber = 0, totalFloors = 0
+  
+When purpose changes to "Paying Guest":
+  → Auto-set residentialType = "PG/Hostel" (if residential)
+
+
+5. COMMON MISTAKES TO AVOID
+----------------------------
+❌ Sending residentialType: "Apartment" with propertyType: "Commercial"
+   ✅ Commercial → send only commercialType
+   
+❌ Sending bedrooms: "" (empty string) for commercial
+   ✅ Commercial → send bedrooms: 0 (number zero)
+   
+❌ Not sending noticePeriod when purpose = "Rent/Lease"
+   ✅ Rent/Lease → always send noticePeriod
+   
+❌ Sending both residentialType AND commercialType
+   ✅ Send only one based on propertyType
+   
+❌ Sending string numbers: bedrooms: "3"
+   ℹ️  Backend converts to number, but prefer sending actual numbers
+
+
+================================================================================
+                            API RESPONSE HANDLING
+================================================================================
+
+SUCCESS RESPONSE (201 Created)
+-------------------------------
+{
+  "message": "Property added successfully & notifications processed!",
+  "property": {
+    "_id": "67860abc123...",
+    "customPropertyId": "A-0ec9-1",
+    "propertyLocation": "A-43, Sector 63, Noida, Uttar Pradesh",
+    "propertyType": "Commercial",
+    "commercialType": "Office Space",
+    "price": 250000,
+    "areaDetails": 2500,
+    "bedrooms": 0,
+    "bathrooms": 0,
+    "parking": "Available",
+    "purpose": "Rent/Lease",
+    "noticePeriod": "1 Month",
+    "photosAndVideo": ["uploads/1736832816123-photo1.jpg", ...],
+    "isPostedByAdmin": true,
+    "adminId": "6923...",
+    "createdAt": "2026-01-14T07:00:16.456Z",
+    ...
+  },
+  "notificationStats": {
+    "totalUsers": 150,
+    "sentCount": 148,
+    "failedCount": 2
+  }
+}
+
+Action: Show success message, redirect to property list
+
+
+ERROR RESPONSES (400 Bad Request)
+----------------------------------
+{
+  "message": "Invalid or missing bedrooms (min 1)"
+}
+
+{
+  "message": "Invalid commercialType"
+}
+
+{
+  "message": "Invalid noticePeriod"
+}
+
+{
+  "message": "Invalid facingDirection"
+}
+
+{
+  "message": "floorNumber cannot be greater than totalFloors"
+}
+
+Action: Display error message near relevant form field
+
+
+ERROR RESPONSE (401 Unauthorized)
+----------------------------------
+{
+  "message": "Unauthorized"
+}
+
+Action: Redirect to login page
+
+
+ERROR RESPONSE (500 Server Error)
+----------------------------------
+{
+  "message": "Server error",
+  "error": "..."
+}
+
+Action: Show generic error message, ask user to retry
+
+
+================================================================================
+                      COMPLETE FIELD ENUMERATION
+================================================================================
+
+VALID VALUES FOR ENUMS:
+-----------------------
+facingDirection:      "North" | "South" | "East" | "West"
+furnishingStatus:     "Furnished" | "Semi-Furnished" | "Unfurnished"
+parking:              "Available" | "Not Available"
+purpose:              "Sell" | "Rent/Lease" | "Paying Guest"
+propertyType:         "Residential" | "Commercial" | "Land"
+residentialType:      "Apartment" | "Villa" | "Plot" | "PG/Hostel" | "Agricultural Land"
+commercialType:       "Office Space" | "Shop" | "Warehouse" | "Industrial"
+noticePeriod:         "15 Days" | "1 Month" | "2 Months"
+foodIncluded:         "Yes" | "No" | "Optional"
+pgType:               "Boys PG" | "Girls PG" | "Co-living"
+sharingType:          "Single Room" | "Double Sharing" | "Triple Sharing"
+
+
+NUMERIC FIELD CONSTRAINTS:
+---------------------------
+areaDetails:          number >= 0 (square feet/meters)
+price:                number >= 0 (in INR)
+bedrooms:             number >= 0 (0 for commercial/plot/land, >=1 for apartment/villa)
+bathrooms:            number >= 0 (0 for commercial/plot/land, >=1 for apartment/villa)
+balconies:            number in [0, 1, 2, 3]
+floorNumber:          number >= 0
+totalFloors:          number >= 1
+contactNumber:        string matching /^\+?[1-9]\d{9,14}$/ (10-15 digits with optional +)
+
+
+================================================================================
+                          TESTING CHECKLIST
+================================================================================
+
+Test Case 1: Residential Apartment (Sell)
+------------------------------------------
+✓ All common fields filled
+✓ propertyType = "Residential"
+✓ residentialType = "Apartment"
+✓ bedrooms >= 1
+✓ bathrooms >= 1
+✓ balconies 0-3
+✓ floorNumber <= totalFloors
+✓ purpose = "Sell"
+✓ Multiple photos uploaded
+
+
+Test Case 2: Commercial Office (Rent/Lease)
+--------------------------------------------
+✓ All common fields filled
+✓ propertyType = "Commercial"
+✓ commercialType = "Office Space"
+✓ NO residentialType sent
+✓ bedrooms = 0
+✓ bathrooms = 0
+✓ balconies = 0
+✓ floorNumber and totalFloors set
+✓ purpose = "Rent/Lease"
+✓ noticePeriod sent
+✓ Photos uploaded
+
+
+Test Case 3: Residential Plot (Sell)
+-------------------------------------
+✓ All common fields filled
+✓ propertyType = "Residential"
+✓ residentialType = "Plot"
+✓ ALL structural fields = 0 (bedrooms, bathrooms, balconies, floors)
+✓ purpose = "Sell"
+✓ Photos uploaded
+
+
+Test Case 4: PG/Hostel (Paying Guest)
+--------------------------------------
+✓ All common fields filled
+✓ propertyType = "Residential"
+✓ residentialType = "PG/Hostel"
+✓ bedrooms >= 1
+✓ bathrooms >= 1
+✓ purpose = "Paying Guest"
+✓ noticePeriod sent
+✓ foodIncluded sent
+✓ pgType sent
+✓ sharingType sent
+✓ Photos uploaded
+
+
+Test Case 5: Agricultural Land (Sell)
+--------------------------------------
+✓ All common fields filled
+✓ propertyType = "Land"
+✓ residentialType = "Agricultural Land"
+✓ ALL structural fields = 0
+✓ purpose = "Sell"
+✓ Photos uploaded
+
+
+================================================================================
+                          QUICK REFERENCE TABLE
+================================================================================
+
+Property Type         | residentialType      | commercialType      | Bedrooms | Bathrooms | Floors
+----------------------|---------------------|---------------------|----------|-----------|--------
+Residential Apartment | "Apartment"         | NOT sent            | >= 1     | >= 1      | Required
+Residential Villa     | "Villa"             | NOT sent            | >= 1     | >= 1      | Required
+Residential Plot      | "Plot"              | NOT sent            | 0        | 0         | 0
+PG/Hostel             | "PG/Hostel"         | NOT sent            | >= 1     | >= 1      | Required
+Agricultural Land     | "Agricultural Land" | NOT sent            | 0        | 0         | 0
+Commercial Office     | NOT sent            | "Office Space"      | 0        | 0         | Required
+Commercial Shop       | NOT sent            | "Shop"              | 0        | 0         | Required
+Commercial Warehouse  | NOT sent            | "Warehouse"         | 0        | 0         | Required
+Industrial            | NOT sent            | "Industrial"        | 0        | 0         | Required
+Land Plot             | "Plot"              | NOT sent            | 0        | 0         | 0
+
+
+================================================================================
+                          SUMMARY & KEY POINTS
+================================================================================
+
+1. ✅ ALWAYS send correct propertyType and corresponding sub-type
+   - Residential/Land → send residentialType
+   - Commercial → send commercialType
+   
+2. ✅ NEVER mix residentialType and commercialType in same request
+
+3. ✅ Set structural fields to 0 for:
+   - Commercial properties (bedrooms, bathrooms, balconies)
+   - Plot/Land properties (all structural fields)
+   
+4. ✅ Validate bedrooms/bathrooms >= 1 for Apartment/Villa/PG
+
+5. ✅ Send noticePeriod for Rent/Lease and Paying Guest purpose
+
+6. ✅ Send PG-specific fields (foodIncluded, pgType, sharingType) when purpose = "Paying Guest"
+
+7. ✅ Implement dynamic form field visibility based on property type selection
+
+8. ✅ Use proper enum values exactly as specified (case-sensitive)
+
+9. ✅ Upload at least one photo (photosAndVideo field accepts multiple files)
+
+10. ✅ Validate floorNumber <= totalFloors before submission
+
+
+For questions or issues, refer to this complete guide or contact the backend team.
+
+================================================================================
+                              END OF GUIDE
+================================================================================
